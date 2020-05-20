@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Vector;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
@@ -82,6 +83,7 @@ public class JWTFuzzPanelView
 
     public JWTFuzzPanelView(ViewComponent viewComponent) {
         contentPane = new JPanel();
+        contentPane.setFocusable(true);
         init();
         this.viewComponent = viewComponent;
     }
@@ -320,6 +322,10 @@ public class JWTFuzzPanelView
         return jwtMessageLocation;
     }
 
+    private Supplier<Boolean> getFocusListenerCriteria() {
+        return () -> this.jwtComboBox.getSelectedIndex() > 0;
+    }
+
     @Override
     public void addFocusListener(MessageLocationProducerFocusListener focusListener) {
         getFocusListenerAdapter().addFocusListener(focusListener);
@@ -330,15 +336,20 @@ public class JWTFuzzPanelView
         getFocusListenerAdapter().removeFocusListener(focusListener);
 
         if (!getFocusListenerAdapter().hasFocusListeners()) {
-            getPane().removeFocusListener(focusListenerAdapter);
             focusListenerAdapter = null;
         }
     }
 
     private MessageLocationProducerFocusListenerAdapter getFocusListenerAdapter() {
         if (focusListenerAdapter == null) {
-            focusListenerAdapter = new MessageLocationProducerFocusListenerAdapter(this);
-            getPane().addFocusListener(focusListenerAdapter);
+            focusListenerAdapter =
+                    new GenericCriteriaBasedMessageLocationProducerFocusListenerAdapter(
+                            this, getFocusListenerCriteria());
+            contentPane.addFocusListener(focusListenerAdapter);
+            this.jwtComboBox.addActionListener((e) -> contentPane.requestFocusInWindow());
+            this.jwtComponentJsonKeysComboBox.addActionListener(
+                    (e) -> contentPane.requestFocusInWindow());
+            this.jwtComponentType.addActionListener((e) -> contentPane.requestFocusInWindow());
         }
         return focusListenerAdapter;
     }
