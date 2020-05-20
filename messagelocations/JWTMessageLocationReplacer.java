@@ -25,7 +25,6 @@ import org.parosproxy.paros.network.HttpMalformedHeaderException;
 import org.parosproxy.paros.network.HttpMessage;
 import org.zaproxy.zap.extension.fuzz.jwtfuzzer.JWTHolder;
 import org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.exception.JWTException;
-import org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.utils.JWTUtils;
 import org.zaproxy.zap.extension.fuzz.messagelocations.MessageLocationReplacement;
 import org.zaproxy.zap.extension.fuzz.messagelocations.MessageLocationReplacer;
 import org.zaproxy.zap.model.InvalidMessageException;
@@ -170,14 +169,10 @@ public class JWTMessageLocationReplacer implements MessageLocationReplacer<HttpM
             jsonObject.remove(key);
             jsonObject.put(key, value);
             if (isHeaderField) {
-                jwtHolder.setHeader(
-                        JWTUtils.getBase64UrlSafeWithoutPaddingEncodedString(
-                                jsonObject.toString()));
+                jwtHolder.setHeader(jsonObject.toString());
                 jwtToken = jwtHolder.getBase64EncodedToken();
             } else {
-                jwtHolder.setPayload(
-                        JWTUtils.getBase64UrlSafeWithoutPaddingEncodedString(
-                                jsonObject.toString()));
+                jwtHolder.setPayload(jsonObject.toString());
                 jwtToken = jwtHolder.getBase64EncodedToken();
             }
             // TODO need to add the Signature based on the provided key.
