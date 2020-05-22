@@ -22,6 +22,7 @@ package org.zaproxy.zap.extension.fuzz.jwtfuzzer.messagelocations;
 import java.io.Serializable;
 import org.parosproxy.paros.network.HttpMessage;
 import org.zaproxy.zap.model.DefaultTextHttpMessageLocation;
+import org.zaproxy.zap.model.MessageLocation;
 
 /**
  * {@code JWTMessageLocation} represent the JWT location in {@link HttpMessage}. As JWT is a
@@ -110,5 +111,10 @@ public class JWTMessageLocation extends DefaultTextHttpMessageLocation implement
             if (other.key != null) return false;
         } else if (!key.equals(other.key)) return false;
         return true;
+    }
+
+    @Override
+    public boolean overlaps(MessageLocation otherLocation) {
+        return this.equals(otherLocation);
     }
 }
