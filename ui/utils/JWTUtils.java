@@ -19,17 +19,32 @@
  */
 package org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.utils;
 
-import static org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.utils.JWTConstants.*;
+import static org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.utils.JWTConstants.BASE64_PADDING_CHARACTER_REGEX;
+import static org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.utils.JWTConstants.BEARER_TOKEN_KEY;
+import static org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.utils.JWTConstants.BEARER_TOKEN_REGEX;
+import static org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.utils.JWTConstants.JWT_RSA_ALGORITHM_IDENTIFIER;
+import static org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.utils.JWTConstants.JWT_RSA_PSS_ALGORITHM_IDENTIFIER;
+import static org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.utils.JWTConstants.JWT_TOKEN_REGEX_VALIDATOR_PATTERN;
 
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.text.ParseException;
 import java.util.Base64;
 import java.util.Objects;
 import java.util.regex.Pattern;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+
+import org.zaproxy.zap.extension.fuzz.jwtfuzzer.JWTHolder;
 import org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.exception.JWTException;
+
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.util.Base64URL;
 
 /**
  * Contains Utility methods for handling various operations on JWT Tokens.
@@ -140,6 +155,42 @@ public class JWTUtils {
             throw new JWTException(
                     "Exception occurred while Signing token: " + getString(token), e);
         }
+    }
+
+    /**
+ 	 * Signs token using provided {@param privateKey} using RSA Signature algorithm. This method only
+     * handles signing of token using RS*(RSA + Sha*) based algorithm.<br>
+     *
+     * @param jwtHolder Token holder which needs contains the fuzzed values
+     * @param privateKey RSA private Key
+     * @return Final Signed JWT using provided {@param privateKey}.
+     * @throws JWTException
+     */
+    public static String getBase64EncodedRSSignedToken(JWTHolder jwtHolder, PrivateKey privateKey)
+            throws JWTException {
+        if (jwtHolder.getAlgorithm().startsWith(JWT_RSA_ALGORITHM_IDENTIFIER)
+                || jwtHolder.getAlgorithm().startsWith(JWT_RSA_PSS_ALGORITHM_IDENTIFIER)) {
+            String base64EncodedNewHeaderAndPayload =
+                    jwtHolder.getBase64EncodedTokenWithoutSignature();
+            if (privateKey != null) {
+                RSASSASigner rsassaSigner = new RSASSASigner(privateKey);
+                try {
+                    return base64EncodedNewHeaderAndPayload
+                            + JWTConstants.JWT_TOKEN_PERIOD_CHARACTER
+                            + rsassaSigner.sign(
+                                    JWSHeader.parse(
+                                            Base64URL.from(
+                                                    JWTUtils
+                                                            .getBase64UrlSafeWithoutPaddingEncodedString(
+                                                                    jwtHolder.getHeader()))),
+                                    JWTUtils.getBytes(
+                                            jwtHolder.getBase64EncodedTokenWithoutSignature()));
+                } catch (JOSEException | ParseException e) {
+                    throw new JWTException("Error occurred: ", e);
+                }
+            }
+        }
+        return null;
     }
 
     private static boolean hasBearerToken(String value) {

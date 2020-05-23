@@ -25,7 +25,6 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.File;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -34,27 +33,21 @@ import java.util.Set;
 import java.util.Vector;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
-import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
-import javax.swing.JTextField;
 import javax.swing.ScrollPaneConstants;
-import javax.swing.border.TitledBorder;
-import javax.swing.filechooser.FileFilter;
 import org.apache.commons.configuration.FileConfiguration;
 import org.apache.log4j.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.parosproxy.paros.network.HttpMessage;
 import org.zaproxy.zap.extension.fuzz.jwtfuzzer.JWTHolder;
+import org.zaproxy.zap.extension.fuzz.jwtfuzzer.messagelocations.FuzzerJWTSignatureOperation;
 import org.zaproxy.zap.extension.fuzz.jwtfuzzer.messagelocations.JWTMessageLocation;
+import org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.exception.JWTException;
 import org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.utils.JWTConstants;
 import org.zaproxy.zap.extension.httppanel.Message;
 import org.zaproxy.zap.extension.httppanel.component.split.request.RequestSplitComponent.ViewComponent;
@@ -63,7 +56,6 @@ import org.zaproxy.zap.extension.httppanel.view.HttpPanelViewModel;
 import org.zaproxy.zap.extension.httppanel.view.impl.models.http.request.RequestStringHttpPanelViewModel;
 import org.zaproxy.zap.model.HttpMessageLocation.Location;
 import org.zaproxy.zap.model.MessageLocation;
-import org.zaproxy.zap.utils.FontUtils;
 import org.zaproxy.zap.view.messagelocation.MessageLocationHighlight;
 import org.zaproxy.zap.view.messagelocation.MessageLocationHighlighter;
 import org.zaproxy.zap.view.messagelocation.MessageLocationHighlightsManager;
@@ -88,18 +80,8 @@ public class JWTFuzzPanelView
     private JComboBox<String> jwtComboBox;
     private JComboBox<String> jwtComponentType;
     private JComboBox<String> jwtComponentJsonKeysComboBox;
-    private JCheckBox jwtSignatureRequiredCheckBox;
+    private JComboBox<FuzzerJWTSignatureOperation> jwtSignatureOperationCheckBox;
 
-    private JTextField jwtRsaSignatureKeyFileChooserTextField;
-    private JPasswordField jwtRsaSignatureKeyPasswordField;
-    private JPasswordField jwtHMacSignatureKey;
-    private JFileChooser jwtRsaSignatureKeyFileChooser;
-    private JButton jwtRsaSignatureFileChooserButton;
-    private JLabel jwtHmacPrivateKeyLabel;
-    private JLabel jwtRsaPrivateKeyLabel;
-    private JLabel jwtRsaSignatureKeyPasswordFieldLabel;
-
-    private String jwtRsaSignatureFileChooserPath;
     private GridBagConstraints gridBagConstraints;
     private Vector<String> jwtComboBoxModel = new Vector<String>(Arrays.asList("--Select--"));
     private HttpMessage message;
@@ -117,14 +99,6 @@ public class JWTFuzzPanelView
         contentPanel.setLayout(new BorderLayout());
         fuzzerPanel = new JPanel();
         fuzzerPanel.setFocusable(true);
-        TitledBorder fuzzerPanelBorder =
-                BorderFactory.createTitledBorder(
-                        null,
-                        "Fuzzer Field Configuration",
-                        TitledBorder.DEFAULT_JUSTIFICATION,
-                        TitledBorder.DEFAULT_POSITION,
-                        FontUtils.getFont(FontUtils.Size.standard));
-        fuzzerPanel.setBorder(fuzzerPanelBorder);
         GridBagLayout gridBagLayout = new GridBagLayout();
         fuzzerPanel.setLayout(gridBagLayout);
         contentScrollPane =
@@ -152,113 +126,11 @@ public class JWTFuzzPanelView
         return gridBagConstraints;
     }
 
-    private JPanel getHMACSignaturePanel() {
-        JPanel hmacSignaturePanel = new JPanel();
-        TitledBorder hmacSignaturePanelBorder =
-                BorderFactory.createTitledBorder(
-                        null,
-                        "HMAC Signature Configuration",
-                        TitledBorder.DEFAULT_JUSTIFICATION,
-                        TitledBorder.DEFAULT_POSITION,
-                        FontUtils.getFont(FontUtils.Size.standard));
-        hmacSignaturePanel.setBorder(hmacSignaturePanelBorder);
-        GridBagConstraints gridBagConstraints = this.getGridBagConstraints();
-        gridBagConstraints.gridx = 0;
-        jwtHmacPrivateKeyLabel = new JLabel("HMac Key");
-        jwtHMacSignatureKey = new JPasswordField();
-        jwtHMacSignatureKey.setEditable(true);
-        jwtHMacSignatureKey.setColumns(15);
-        gridBagConstraints.gridx = 0;
-        gridBagConstraints.gridy++;
-        hmacSignaturePanel.add(jwtHmacPrivateKeyLabel, gridBagConstraints);
-        hmacSignaturePanel.add(jwtHMacSignatureKey, gridBagConstraints);
-        gridBagConstraints.gridx++;
-        return hmacSignaturePanel;
-    }
-
-    private JPanel getRSASignaturePanel() {
-        JPanel rsaSignaturePanel = new JPanel();
-        TitledBorder rsaSignaturePanelBorder =
-                BorderFactory.createTitledBorder(
-                        null,
-                        "RSA Signature Configuration",
-                        TitledBorder.DEFAULT_JUSTIFICATION,
-                        TitledBorder.DEFAULT_POSITION,
-                        FontUtils.getFont(FontUtils.Size.standard));
-        rsaSignaturePanel.setBorder(rsaSignaturePanelBorder);
-        GridBagConstraints gridBagConstraints = this.getGridBagConstraints();
-        gridBagConstraints.gridx = 0;
-        jwtRsaPrivateKeyLabel = new JLabel("RSA Key");
-        jwtRsaSignatureKeyPasswordFieldLabel = new JLabel("RSA Keystore password");
-        jwtRsaSignatureKeyPasswordField = new JPasswordField();
-        jwtRsaSignatureKeyPasswordField.setEditable(true);
-        jwtRsaSignatureKeyPasswordField.setColumns(15);
-
-        jwtRsaSignatureFileChooserButton = new JButton("Select...");
-        jwtRsaSignatureKeyFileChooserTextField = new JTextField();
-        jwtRsaSignatureKeyFileChooserTextField.setEditable(false);
-        jwtRsaSignatureKeyFileChooserTextField.setColumns(15);
-        jwtRsaSignatureFileChooserButton.addActionListener(
-                new ActionListener() {
-
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        jwtRsaSignatureKeyFileChooser = new JFileChooser();
-                        jwtRsaSignatureKeyFileChooser.setFileFilter(
-                                new FileFilter() {
-
-                                    @Override
-                                    public String getDescription() {
-                                        return "Description";
-                                    }
-
-                                    @Override
-                                    public boolean accept(File f) {
-                                        return f.getName().endsWith(".p12") || f.isDirectory();
-                                    }
-                                });
-                        jwtRsaSignatureKeyFileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-                        String path = jwtRsaSignatureKeyFileChooserTextField.getText();
-                        if (!path.isEmpty()) {
-                            File file = new File(path);
-                            if (file.exists()) {
-                                jwtRsaSignatureKeyFileChooser.setSelectedFile(file);
-                            }
-                        }
-                        if (jwtRsaSignatureKeyFileChooser.showOpenDialog(null)
-                                == JFileChooser.APPROVE_OPTION) {
-                            final File selectedFile =
-                                    jwtRsaSignatureKeyFileChooser.getSelectedFile();
-                            jwtRsaSignatureFileChooserPath = selectedFile.getAbsolutePath();
-                            jwtRsaSignatureKeyFileChooserTextField.setText(
-                                    selectedFile.getAbsolutePath());
-                        }
-                    }
-                });
-        gridBagConstraints.gridx = 0;
-        gridBagConstraints.gridy++;
-        rsaSignaturePanel.add(jwtRsaPrivateKeyLabel, gridBagConstraints);
-        gridBagConstraints.gridx++;
-        rsaSignaturePanel.add(jwtRsaSignatureKeyFileChooserTextField, gridBagConstraints);
-        gridBagConstraints.gridx++;
-        rsaSignaturePanel.add(jwtRsaSignatureFileChooserButton, gridBagConstraints);
-        gridBagConstraints.gridx++;
-        gridBagConstraints.gridy++;
-        rsaSignaturePanel.add(jwtRsaSignatureKeyPasswordFieldLabel, gridBagConstraints);
-        gridBagConstraints.gridx++;
-        rsaSignaturePanel.add(jwtRsaSignatureKeyPasswordField, gridBagConstraints);
-        return rsaSignaturePanel;
-    }
-
     private void init() {
         addLabel();
         gridBagConstraints.gridx = 0;
         gridBagConstraints.gridy++;
         generalSettingsSection();
-        GridBagConstraints gridBagConstraints = this.getGridBagConstraints();
-        signaturePanel.add(this.getHMACSignaturePanel(), gridBagConstraints);
-        gridBagConstraints.gridy++;
-        signaturePanel.add(this.getRSASignaturePanel(), gridBagConstraints);
     }
 
     private void addLabel() {
@@ -277,6 +149,8 @@ public class JWTFuzzPanelView
         this.jwtComponentJsonKeysComboBox.addActionListener(
                 (e) -> fuzzerPanel.requestFocusInWindow());
         this.jwtComponentType.addActionListener((e) -> fuzzerPanel.requestFocusInWindow());
+        this.jwtSignatureOperationCheckBox.addActionListener(
+                (e) -> fuzzerPanel.requestFocusInWindow());
     }
 
     private void generalSettingsSection() {
@@ -285,7 +159,8 @@ public class JWTFuzzPanelView
         jwtComboBox = new JComboBox<String>(this.jwtComboBoxModel);
         jwtComponentType = new JComboBox<String>();
         jwtComponentJsonKeysComboBox = new JComboBox<String>();
-        jwtSignatureRequiredCheckBox = new JCheckBox();
+        jwtSignatureOperationCheckBox =
+                new JComboBox<FuzzerJWTSignatureOperation>(FuzzerJWTSignatureOperation.values());
         this.addFuzzerFieldsActionListeners();
         fuzzerPanel.add(jwtComboBox, gridBagConstraints);
         jwtComboBox.addActionListener(
@@ -310,7 +185,7 @@ public class JWTFuzzPanelView
                                 gridBagConstraints.gridx++;
                                 fuzzerPanel.add(jwtComponentJsonKeysComboBox, gridBagConstraints);
                                 gridBagConstraints.gridx++;
-                                fuzzerPanel.add(jwtSignatureRequiredCheckBox, gridBagConstraints);
+                                fuzzerPanel.add(jwtSignatureOperationCheckBox, gridBagConstraints);
                                 gridBagConstraints.gridx = 0;
                                 String jwtComponentValue = jwtHolder.getHeader();
                                 if (jwtComponentType.getSelectedIndex() == 1) {
@@ -357,6 +232,10 @@ public class JWTFuzzPanelView
                             if (jwtComponentType != null) {
                                 jwtComponentType.removeAllItems();
                                 fuzzerPanel.remove(jwtComponentType);
+                            }
+
+                            if (jwtSignatureOperationCheckBox != null) {
+                                fuzzerPanel.remove(jwtSignatureOperationCheckBox);
                             }
                         }
                         fuzzerPanel.revalidate();
@@ -510,16 +389,52 @@ public class JWTFuzzPanelView
                         startIndex + jwt.length() - 1,
                         jwt,
                         jwtComponentJsonKey,
-                        isHeaderComponent);
+                        isHeaderComponent,
+                        (FuzzerJWTSignatureOperation)
+                                (jwtSignatureOperationCheckBox.getSelectedItem()));
         List<Component> components =
                 Arrays.asList(
-                        this.jwtComboBox, this.jwtComponentType, this.jwtComponentJsonKeysComboBox);
+                        this.jwtComboBox,
+                        this.jwtComponentType,
+                        this.jwtComponentJsonKeysComboBox,
+                        this.jwtSignatureOperationCheckBox);
         this.jwtMessageLocationAndRelatedComponentsMap.put(jwtMessageLocation, components);
         return jwtMessageLocation;
     }
 
     private Supplier<Boolean> getFocusListenerCriteria() {
-        return () -> this.jwtComboBox.getSelectedIndex() > 0;
+        return () -> {
+            if (this.jwtComboBox.getSelectedIndex() < 0) {
+                return false;
+            }
+
+            if (this.jwtSignatureOperationCheckBox
+                    .getSelectedItem()
+                    .equals(FuzzerJWTSignatureOperation.NEW_SIGNATURE)) {
+                JWTHolder jwtHolder;
+                try {
+                    String jwt = comboBoxKeyAndJwtMap.get(jwtComboBox.getSelectedItem().toString());
+                    jwtHolder = JWTHolder.parseJWTToken(jwt);
+                    if ((JWTConstants.JWT_HMAC_ALGO_TO_JAVA_ALGORITHM_MAPPING.containsKey(
+                                    jwtHolder.getAlgorithm())
+                            /* && JWTConfiguration.getInstance().getPassword().length == 0*/ )
+                            || (jwtHolder
+                                            .getAlgorithm()
+                                            .startsWith(JWTConstants.JWT_RSA_ALGORITHM_IDENTIFIER)
+                                    || jwtHolder
+                                            .getAlgorithm()
+                                            .startsWith(
+                                                    JWTConstants.JWT_RSA_PSS_ALGORITHM_IDENTIFIER))
+                    /* && this.jwtRsaSignatureFileChooserPath.length() == 0*/ ) {
+                        return false;
+                    }
+                } catch (JWTException e) {
+                    LOGGER.debug("Exception occurred: ", e);
+                    return false;
+                }
+            }
+            return true;
+        };
     }
 
     @Override

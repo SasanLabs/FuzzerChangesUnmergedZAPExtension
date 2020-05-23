@@ -51,6 +51,9 @@ public class JWTMessageLocation extends DefaultTextHttpMessageLocation implement
      */
     private boolean isHeaderField;
 
+    /** {@code Signature} Operation after fuzzing JWT */
+    private FuzzerJWTSignatureOperation fuzzerJWTSignatureOperation;
+
     /**
      * @param location in {@code HttpMessage} i.e. Request's Header/Body or Response's Header/Body
      * @param start index of JWT in {@code HttpMessage}
@@ -58,6 +61,7 @@ public class JWTMessageLocation extends DefaultTextHttpMessageLocation implement
      * @param value JWT value
      * @param key JSON Object's Key field
      * @param isHeaderOrPayload provided {@param key} is present in Header component or not.
+     * @param fuzzerJWTSignatureOperation JWT signature operation
      */
     public JWTMessageLocation(
             Location location,
@@ -65,10 +69,12 @@ public class JWTMessageLocation extends DefaultTextHttpMessageLocation implement
             int end,
             String value,
             String key,
-            boolean isHeaderOrPayload) {
+            boolean isHeaderOrPayload,
+            FuzzerJWTSignatureOperation fuzzerJWTSignatureOperation) {
         super(location, start, end, value);
         this.key = key;
         this.isHeaderField = isHeaderOrPayload;
+        this.fuzzerJWTSignatureOperation = fuzzerJWTSignatureOperation;
     }
 
     /** @return JSON Object's Key field */
@@ -91,10 +97,26 @@ public class JWTMessageLocation extends DefaultTextHttpMessageLocation implement
         this.isHeaderField = isHeaderField;
     }
 
+    /** @return FuzzerJWTSignatureOperation */
+    public FuzzerJWTSignatureOperation getFuzzerJWTSignatureOperation() {
+        return fuzzerJWTSignatureOperation;
+    }
+
+    /** @param fuzzerJWTSignatureOperation */
+    public void setFuzzerJWTSignatureOperation(
+            FuzzerJWTSignatureOperation fuzzerJWTSignatureOperation) {
+        this.fuzzerJWTSignatureOperation = fuzzerJWTSignatureOperation;
+    }
+
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = super.hashCode();
+        result =
+                prime * result
+                        + ((fuzzerJWTSignatureOperation == null)
+                                ? 0
+                                : fuzzerJWTSignatureOperation.hashCode());
         result = prime * result + (isHeaderField ? 1231 : 1237);
         result = prime * result + ((key == null) ? 0 : key.hashCode());
         return result;
@@ -106,6 +128,7 @@ public class JWTMessageLocation extends DefaultTextHttpMessageLocation implement
         if (!super.equals(obj)) return false;
         if (getClass() != obj.getClass()) return false;
         JWTMessageLocation other = (JWTMessageLocation) obj;
+        if (fuzzerJWTSignatureOperation != other.fuzzerJWTSignatureOperation) return false;
         if (isHeaderField != other.isHeaderField) return false;
         if (key == null) {
             if (other.key != null) return false;

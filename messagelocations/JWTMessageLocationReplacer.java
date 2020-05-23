@@ -19,12 +19,23 @@
  */
 package org.zaproxy.zap.extension.fuzz.jwtfuzzer.messagelocations;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.SortedSet;
+import org.apache.commons.io.FileUtils;
 import org.json.JSONObject;
 import org.parosproxy.paros.network.HttpMalformedHeaderException;
 import org.parosproxy.paros.network.HttpMessage;
+import org.zaproxy.zap.extension.dynssl.SslCertificateUtils;
 import org.zaproxy.zap.extension.fuzz.jwtfuzzer.JWTHolder;
 import org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.exception.JWTException;
+import org.zaproxy.zap.extension.fuzz.jwtfuzzer.ui.utils.JWTUtils;
 import org.zaproxy.zap.extension.fuzz.messagelocations.MessageLocationReplacement;
 import org.zaproxy.zap.extension.fuzz.messagelocations.MessageLocationReplacer;
 import org.zaproxy.zap.model.InvalidMessageException;
@@ -154,6 +165,19 @@ public class JWTMessageLocationReplacer implements MessageLocationReplacer<HttpM
             value = new StringBuilder(originalValue);
         }
 
+        private RSAPrivateKey getPrivateKey() throws JWTException {
+            File pemFile = new File("/");
+            try {
+                String certAndKey = FileUtils.readFileToString(pemFile, StandardCharsets.US_ASCII);
+                byte[] keyBytes = SslCertificateUtils.extractPrivateKey(certAndKey);
+                PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+                KeyFactory factory = KeyFactory.getInstance("RSA");
+                return (RSAPrivateKey) factory.generatePrivate(spec);
+            } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+                throw new JWTException("Error occurred: ", e);
+            }
+        }
+
         public void replace(JWTMessageLocation jwtMessageLocation, String value)
                 throws JWTException {
             boolean isHeaderField = jwtMessageLocation.isHeaderField();
@@ -170,12 +194,19 @@ public class JWTMessageLocationReplacer implements MessageLocationReplacer<HttpM
             jsonObject.put(key, value);
             if (isHeaderField) {
                 jwtHolder.setHeader(jsonObject.toString());
-                jwtToken = jwtHolder.getBase64EncodedToken();
             } else {
                 jwtHolder.setPayload(jsonObject.toString());
-                jwtToken = jwtHolder.getBase64EncodedToken();
             }
-            // TODO need to add the Signature based on the provided key.
+            if (jwtMessageLocation
+                    .getFuzzerJWTSignatureOperation()
+                    .equals(FuzzerJWTSignatureOperation.NO_SIGNATURE)) {
+                jwtHolder.setSignature(JWTUtils.getBytes(""));
+            } else if (jwtMessageLocation
+                    .getFuzzerJWTSignatureOperation()
+                    .equals(FuzzerJWTSignatureOperation.NEW_SIGNATURE)) {
+                JWTUtils.getBase64EncodedRSSignedToken(jwtHolder, getPrivateKey());
+            }
+            jwtToken = jwtHolder.getBase64EncodedToken();
             this.value.replace(
                     offset + jwtMessageLocation.getStart(),
                     offset + jwtMessageLocation.getEnd(),
